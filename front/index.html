@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>Chrome Dino</title>
+    <link rel="stylesheet" href="./index.css"/>
+    <script src="https://cdn.bootcdn.net/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
+</head>
+<body>
+<button id="match">匹配</button>
+<div>
+    <span>
+        房间名：
+        <span id="room_name">
+
+        </span>
+    </span>
+</div>
+<!-- 游戏的 “根” DOM节点，用来容纳游戏的主体部分 -->
+<div id="runner1" class="chrome-dino1"></div>
+<br>
+<div id="runner2" class="chrome-dino1"></div>
+
+<!-- 游戏用到的雪碧图，音频资源 -->
+<div id="offline-resources">
+    <img id="offline-resources-1x" src="./assets/default_100_percent/100-offline-sprite.png" alt="sprite"/>
+</div>
+
+
+<script src="./index.js"></script>
+</body>
+<script>
+
+    function newRunner(runnerId) {
+        var chromeDino = document.getElementById(runnerId);
+        chromeDino.classList.add('offline');
+
+        r = new Runner('#' + runnerId);
+        return r
+    }
+
+    window.onload = function () {
+        r1 = newRunner("runner1")
+        r2 = newRunner("runner2")
+
+        socket = io.connect('http://192.168.0.209:8080');
+        // r1.onKeyDown(downEvent)
+        // r2.onKeyDown(jumpEvent)
+        document.addEventListener("keydown", onKeyDown);
+
+        function onKeyDown(event) {
+            socket.emit("keydown", event.keyCode)
+            r1.onKeyDown(event)
+            // r2.onKeyDown(event)
+        }
+
+        document.addEventListener("keyup", onKeyUp);
+
+        function onKeyUp(event) {
+            socket.emit("keyup", event.keyCode)
+            r1.onKeyUp(event)
+            // r2.onKeyUp(event)
+        }
+
+        uuid = getCookie("uuid")
+        if (!uuid) {
+            uuid = Math.floor(Math.random() * 10000000).toString()
+            setCookie("uuid", uuid)
+        }
+
+        socket.emit("connect_", uuid)
+
+        // 房间
+        socket.emit("room", uuid)
+        socket.on("roomRes", function (data) {
+            document.getElementById("room_name").innerHTML = data
+        })
+
+        socket.on("speedRes", function (data) {
+            speed = parseFloat(data)
+            r1.currentSpeed = speed
+            r2.currentSpeed = speed
+            if (!r1.playing) {
+                r1.setPlayStatus(true);
+                r1.update();
+                r1.tRex.update(0, Trex.status.RUNNING)
+
+                r2.setPlayStatus(true);
+                r2.update();
+                r2.tRex.update(0, Trex.status.RUNNING)
+            }
+        })
+
+        socket.on("keyupRes", function (data) {
+            e = new KeyboardEvent("keyup", {
+                which: data,
+                keyCode: data,
+            });
+
+            r2.onKeyUp(e)
+
+        })
+        socket.on("keydownRes", function (data) {
+            e = new KeyboardEvent("keydown", {
+                which: data,
+                keyCode: data,
+            });
+
+            r2.onKeyDown(e)
+        })
+
+        document.getElementById("match").onclick =
+            function () {
+                console.log("ok")
+                socket.emit("match", uuid)
+            }
+
+
+    };
+</script>
+<script>
+    function setCookie(name,value)
+    {
+        var Days = 30;
+        var exp = new Date();
+        exp.setTime(exp.getTime() + Days*24*60*60*1000);
+        document.cookie = name + "="+ escape (value) + ";expires=" + exp.toGMTString();
+
+
+        var strsec = getsec(time);
+        var exp = new Date();
+        exp.setTime(exp.getTime() + strsec*1);
+        document.cookie = name + "="+ escape (value) + ";expires=" + exp.toGMTString();
+    }
+
+    //读取cookies
+    function getCookie(name)
+    {
+        var arr,reg=new RegExp("(^| )"+name+"=([^;]*)(;|$)");
+
+        if(arr=document.cookie.match(reg))
+
+            return (arr[2]);
+        else
+            return null;
+    }
+
+    //删除cookies
+    function delCookie(name)
+    {
+        var exp = new Date();
+        exp.setTime(exp.getTime() - 1);
+        var cval=getCookie(name);
+        if(cval!=null)
+            document.cookie= name + "="+cval+";expires="+exp.toGMTString();
+    }
+    function getsec(str)
+    {
+        alert(str);
+        var str1=str.substring(1,str.length)*1;
+        var str2=str.substring(0,1);
+        if (str2=="s")
+        {
+            return str1*1000;
+        }
+        else if (str2=="h")
+        {
+            return str1*60*60*1000;
+        }
+        else if (str2=="d")
+        {
+            return str1*24*60*60*1000;
+        }
+    }
+</script>
+</html>
