@@ -51,9 +51,12 @@ var (
 	ReadyCount         = 0
 	ReadyMap           = make(map[string]bool)
 	Speed      float64 = 0
+	MaxSpeed float64 = 13
+	SpeedStep float64= 0.01
 
 	MatchChan = make(chan User, 200)
 
+	// userId: socket
 	MatchedMap = sync.Map{}
 )
 
@@ -65,11 +68,18 @@ func Match(s socketio.Socket, req string) {
 		s:    s,
 		Name: req,
 	}
-	MatchedMap.Store(req, new(Room))
 }
 
 func LeaveRoom(s socketio.Socket, req string) {
-	MatchedMap.Delete(req)
+	waitRoomIn, ok := MatchedMap.Load(req)
+	if !ok {
+		return
+	}
+	waitRoom := waitRoomIn.(*Room)
+	if waitRoom.Finished {
+		// 对局结束才能离开房间
+		MatchedMap.Delete(req)
+	}
 }
 
 func GetRoom(s socketio.Socket, req string) {
@@ -92,6 +102,8 @@ type Room struct {
 	isFull bool
 	//People   int32 // 人数
 	UserList []User
+	FinishedChan chan bool
+	Finished bool
 }
 
 func runMatch() {
@@ -102,6 +114,11 @@ func runMatch() {
 			if waitRoom.isFull {
 				waitRoom = new(Room)
 			} else {
+				// 防止重入房间
+				if _, ok := MatchedMap.Load(user.Name); ok {
+					continue
+				}
+				MatchedMap.Store(user.Name, waitRoom)
 				waitRoom.UserList = append(waitRoom.UserList, user)
 				if len(waitRoom.UserList) == 2 {
 					log.Println("匹配成功")
@@ -113,19 +130,26 @@ func runMatch() {
 						MatchedMap.Store(user.Name, waitRoom)
 					}
 					SocketServer.BroadcastTo(waitRoom.Name, "roomRes", waitRoom.Name)
-					go func(room string) {
+					go func(waitRoom *Room) {
 						Speed = 3
 						for {
-							if Speed <= 13 {
-								Speed += 0.01
+							select {
+							case <-waitRoom.FinishedChan:
+								// 退出房间
+								close(waitRoom.FinishedChan)
+								waitRoom.Finished = true
+								log.Println(waitRoom.Name, "结束")
+								return
+							default:
+								if Speed <= MaxSpeed {
+									Speed += SpeedStep
+								}
+								SocketServer.BroadcastTo(waitRoom.Name, "speedRes", Speed)
 							}
-							SocketServer.BroadcastTo(room, "speedRes", Speed)
 							time.Sleep(time.Second)
 						}
 						// todo 障碍生成
-						// todo 线程关闭
-
-					}(waitRoom.Name)
+					}(waitRoom)
 				} else {
 					log.Println("等待匹配中")
 				}
