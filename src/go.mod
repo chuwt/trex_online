@@ -1,4 +1,4 @@
-module dinaso
+module trex_online/src
 
 go 1.14
 
