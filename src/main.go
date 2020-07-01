@@ -4,17 +4,12 @@ import (
 	"fmt"
 	socketio "github.com/googollee/go-socket.io"
 	"net/http"
+	"trex_online/src/handle"
 	"trex_online/src/match"
+	"trex_online/src/msg"
 )
 
 func main() {
-
-	// 启动 match engine
-	matchEngine := match.NewMatchEngine()
-	matchEngine.Run()
-	for i := 0; i < 10000; i++ {
-		matchEngine.JoinRoom(&match.User{})
-	}
 
 	var (
 		err          error
@@ -23,6 +18,18 @@ func main() {
 	if SocketServer, err = socketio.NewServer(nil); err != nil {
 		panic("ws server error" + err.Error())
 	}
+
+	msg.Message = msg.NewBroadCast(SocketServer)
+	msg.Message.Run()
+	// 启动 match engine
+	match.MEngine = match.NewMatchEngine()
+	match.MEngine.Run()
+
+	SocketServer.On("match", handle.Match)
+	SocketServer.On("getInRoom", handle.GetInRoom)
+	SocketServer.On("leaveRoom", handle.LeaveRoom)
+	SocketServer.On("keyDown", handle.OnKeyDown)
+	SocketServer.On("keyUp", handle.OnKeyUp)
 
 	http.HandleFunc("/socket.io/", func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")

@@ -10,12 +10,15 @@ const (
 	MaxMatchQueue = 1000
 )
 
+var MEngine *Engine
+
 type Engine struct {
-	roomMap    sync.Map
-	matchQueue chan *User
-	latestRoom *Room
-	matchLock  chan struct{}
-	roomCap    int32
+	roomMap     sync.Map
+	userRoomMap sync.Map
+	matchQueue  chan *User
+	latestRoom  *Room
+	matchLock   chan struct{}
+	roomCap     int32
 }
 
 func NewMatchEngine() *Engine {
@@ -39,16 +42,27 @@ func (e *Engine) JoinRoom(user *User) {
 	e.matchQueue <- user
 }
 
-func (e *Engine) LeaveRoom(roomId int32, userId string) {
-	if roomIn, ok := e.roomMap.Load(roomId); !ok {
+func (e *Engine) GetUserRoom(userId string) *Room {
+	if roomIn, ok := e.userRoomMap.Load(userId); !ok {
+		return nil
+	} else {
+		return roomIn.(*Room)
+	}
+}
+
+func (e *Engine) LeaveRoom(userId string) {
+	if roomIn, ok := e.userRoomMap.Load(userId); !ok {
 		return
 	} else {
 		room := roomIn.(*Room)
 		if !room.Full {
-			if _, ok := room.People.Load(userId); ok {
+			user := room.GetUser(userId)
+			if user != nil {
 				e.matchLock <- struct{}{}
 				room.Len -= 1
-				room.People.Delete(userId)
+				user.LeaveRoom(room.Name)
+				room.removeUser(userId)
+				e.userRoomMap.Delete(userId)
 				<-e.matchLock
 				log.Println("leave")
 			}
@@ -64,13 +78,15 @@ func (e *Engine) MatchLoop() {
 			// 如果当前房间已满，则创建新的房间
 			if e.latestRoom.Full {
 				e.NewRoom()
-			} else if _, ok := e.latestRoom.People.Load(user.Id); ok {
+			} else if user := e.latestRoom.GetUser(user.Id); user != nil {
 				log.Println("already")
 				break
 			}
 			e.matchLock <- struct{}{}
 			// 用户进入房间
-			e.latestRoom.People.Store(user.Id, user)
+			user.GetInRoom(e.latestRoom.Id, e.latestRoom.Name)
+			e.latestRoom.AddUser(user)
+			e.userRoomMap.Store(user.Id, e.latestRoom)
 			e.latestRoom.Len += 1
 			// 是否已满
 			log.Println(e.latestRoom.Len)
