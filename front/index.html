@@ -111,11 +111,10 @@
         let runnerMap = new Map()
         runnerMap.set(uuid, newRunner("runner1"))
 
-        // let runnerMap = {
-        //     uuid: r1,
-        // }
-
         socket = io.connect('http://localhost:8080');
+        socket.on("connect", function(){
+            socket.emit("getInRoom", uuid)
+        })
         document.addEventListener("keydown", onKeyDown);
         function onKeyDown(event) {
             if (event.keyCode === 38 || event.keyCode === 40) {
@@ -143,7 +142,6 @@
         }
 
         // 获取房间
-        socket.emit("getInRoom", uuid)
         socket.on("getInRoom", function (data) {
             document.getElementById("room_name").innerHTML = data
         })
