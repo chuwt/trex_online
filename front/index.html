@@ -111,8 +111,8 @@
         let runnerMap = new Map()
         runnerMap.set(uuid, newRunner("runner1"))
 
-        // socket = io.connect('http://103.93.79.203:8080');
-        socket = io.connect('http://192.168.0.209:8080');
+        socket = io.connect('http://103.93.79.203:8080');
+        // socket = io.connect('http://192.168.0.209:8080');
         socket.on("connect", function(data){
             socket.emit("getInRoom", uuid)
             socket.emit("getInRoom", uuid)
