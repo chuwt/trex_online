@@ -1,6 +1,7 @@
 package match
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"sync"
@@ -23,11 +24,12 @@ type Room struct {
 	Name string // 房间名称
 	Id   int32
 
-	Cap    int32    // 容量
-	Len    int32    // 数量
-	Finish bool     // 对局是否完成
-	Full   bool     // 是否满员
-	people sync.Map // 对局的用户
+	Cap        int32    // 容量
+	Len        int32    // 数量
+	Finish     bool     // 对局是否完成
+	Full       bool     // 是否满员
+	people     sync.Map // 对局的用户
+	peopleList []string // 用户列表
 
 	CreateTime int64 // 时间
 	FinishTime int64 // 完成时间
@@ -56,17 +58,29 @@ func (r *Room) GetUser(userId string) *User {
 	return nil
 }
 
+func (r *Room) GetRoomUsers() string {
+	peopleByte, _ := json.Marshal(r.peopleList)
+	return string(peopleByte)
+}
+
 func (r *Room) removeUser(userId string) {
 	r.people.Delete(userId)
+	for index, value := range r.peopleList {
+		if value == userId {
+			r.peopleList = append(r.peopleList[:index], r.peopleList[index+1:]...)
+		}
+	}
 }
 
 func (r *Room) AddUser(user *User) {
 	r.people.Store(user.Id, user)
+	r.peopleList = append(r.peopleList, user.Id)
 }
 
 func (r *Room) RunBattle() {
 	log.Println(fmt.Sprintf("%s", "start battle"))
-	r.Broadcast("begin", "startBattle")
+	peopleByte, _ := json.Marshal(r.peopleList)
+	r.Broadcast(string(peopleByte), "startBattle")
 	speed := StartSpeed
 	for {
 		select {

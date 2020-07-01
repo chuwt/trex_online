@@ -25,10 +25,11 @@
     <button id="leave">离开房间</button>
 </div>
 
+<div id="main">
 <!-- 游戏的 “根” DOM节点，用来容纳游戏的主体部分 -->
-<div id="runner1" class="chrome-dino1"></div>
+<div id="runner1" class="chrome-dino1 offline"></div>
 <br>
-<div id="runner2" class="chrome-dino1"></div>
+</div>
 
 <!-- 游戏用到的雪碧图，音频资源 -->
 <div id="offline-resources">
@@ -39,47 +40,108 @@
 <script src="./index.js"></script>
 </body>
 <script>
+    function setCookie(name,value)
+    {
+        var Days = 30;
+        var exp = new Date();
+        exp.setTime(exp.getTime() + Days*24*60*60*1000);
+        document.cookie = name + "="+ escape (value) + ";expires=" + exp.toGMTString();
+
+
+        var strsec = getsec(time);
+        var exp = new Date();
+        exp.setTime(exp.getTime() + strsec*1);
+        document.cookie = name + "="+ escape (value) + ";expires=" + exp.toGMTString();
+    }
+
+    //读取cookies
+    function getCookie(name)
+    {
+        var arr,reg=new RegExp("(^| )"+name+"=([^;]*)(;|$)");
+
+        if(arr=document.cookie.match(reg))
+
+            return (arr[2]);
+        else
+            return null;
+    }
+
+    //删除cookies
+    function delCookie(name)
+    {
+        var exp = new Date();
+        exp.setTime(exp.getTime() - 1);
+        var cval=getCookie(name);
+        if(cval!=null)
+            document.cookie= name + "="+cval+";expires="+exp.toGMTString();
+    }
+    function getsec(str)
+    {
+        alert(str);
+        var str1=str.substring(1,str.length)*1;
+        var str2=str.substring(0,1);
+        if (str2=="s")
+        {
+            return str1*1000;
+        }
+        else if (str2=="h")
+        {
+            return str1*60*60*1000;
+        }
+        else if (str2=="d")
+        {
+            return str1*24*60*60*1000;
+        }
+    }
+</script>
+<script>
 
     function newRunner(runnerId) {
-        var chromeDino = document.getElementById(runnerId);
-        chromeDino.classList.add('offline');
-
         r = new Runner('#' + runnerId);
         return r
     }
 
+    uuid = getCookie("uuid")
+    if (!uuid) {
+        uuid = Math.floor(Math.random() * 10000000).toString()
+        setCookie("uuid", uuid)
+    }
+
     window.onload = function () {
-        r1 = newRunner("runner1")
-        r2 = newRunner("runner2")
+        let runnerMap = new Map()
+        runnerMap.set(uuid, newRunner("runner1"))
+
+        // let runnerMap = {
+        //     uuid: r1,
+        // }
 
         socket = io.connect('http://192.168.0.209:8080');
-        // r1.onKeyDown(downEvent)
-        // r2.onKeyDown(jumpEvent)
         document.addEventListener("keydown", onKeyDown);
         function onKeyDown(event) {
             if (event.keyCode === 38 || event.keyCode === 40) {
                 // socket.emit("keyDown", event.keyCode)
-                socket.emit("keyDown", uuid)
-                r1.onKeyDown(event)
+                let op = {
+                    "userId": uuid,
+                    "keyCode": event.keyCode
+                }
+                socket.emit("keyDown", JSON.stringify(op))
+                runnerMap.get(uuid).onKeyDown(event)
             }
-            // r2.onKeyDown(event)
         }
 
         document.addEventListener("keyup", onKeyUp);
         function onKeyUp(event) {
             if (event.keyCode === 40 || event.keyCode === 38) {
                 // socket.emit("keyUp", event.keyCode)
-                socket.emit("keyUp", uuid)
-                r1.onKeyUp(event)
+                let op = {
+                    "userId": uuid,
+                    "keyCode": event.keyCode
+                }
+                socket.emit("keyUp", JSON.stringify(op))
+                runnerMap.get(uuid).onKeyDown(event)
             }
-            // r2.onKeyUp(event)
         }
 
-        uuid = getCookie("uuid")
-        if (!uuid) {
-            uuid = Math.floor(Math.random() * 10000000).toString()
-            setCookie("uuid", uuid)
-        }
         // 获取房间
         socket.emit("getInRoom", uuid)
         socket.on("getInRoom", function (data) {
@@ -88,39 +150,50 @@
 
         // 开始游戏
         socket.on("startBattle", function(data){
-            document.getElementById("status").innerHTML = "匹配成功, 对战开始"
+            // 创建
+            let peopleList = JSON.parse(data)
+            for (let people of peopleList) {
+                if (people === uuid) {
+                    continue
+                }
+                let div = document.createElement("div");
+                div.className = "chrome-dino1 offline"
+                div.id = "uuid"+people
+                let mainDiv = document.getElementById("main")
+                mainDiv.appendChild(div)
+                let br = document.createElement("br")
+                mainDiv.appendChild(br)
+                runnerMap.set(people, newRunner("uuid"+people))
+            }
         })
         socket.on("speed", function (data) {
+            document.getElementById("status").innerHTML = "匹配成功, 对战开始"
             speed = parseFloat(data)
-            r1.currentSpeed = speed
-            r2.currentSpeed = speed
-            if (!r1.playing) {
-                r1.setPlayStatus(true);
-                r1.update();
-                r1.tRex.update(0, Trex.status.RUNNING)
-
-                r2.setPlayStatus(true);
-                r2.update();
-                r2.tRex.update(0, Trex.status.RUNNING)
+            for (let [key, runner] of runnerMap) {
+                runner.currentSpeed = speed
+                if (!runner.playing) {
+                    runner.setPlayStatus(true);
+                    runner.update();
+                    runner.tRex.update(0, Trex.status.RUNNING)
+                }
             }
         })
 
         socket.on("keyUp", function (data) {
+            res = JSON.parse(data)
             e = new KeyboardEvent("keyup", {
-                which: data,
-                keyCode: data,
+                which: res["keyCode"],
+                keyCode: res["keyCode"],
             });
-
-            r2.onKeyUp(e)
-
+            runnerMap.get(res["userId"]).onKeyUp(e)
         })
         socket.on("keyDown", function (data) {
+            res = JSON.parse(data)
             e = new KeyboardEvent("keydown", {
-                which: data,
-                keyCode: data,
+                which: res["keyCode"],
+                keyCode: res["keyCode"],
             });
-
-            r2.onKeyDown(e)
+            runnerMap.get(res["userId"]).onKeyDown(e)
         })
 
         // 匹配

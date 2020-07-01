@@ -25,6 +25,8 @@ func GetInRoom(s socketio.Socket, userId string) {
 			user.SetSocket(s)
 			// 订阅room
 			user.GetInRoom(room.Id, room.Name)
+			userList := room.GetRoomUsers()
+			s.Emit("startBattle", userList)
 		}
 	}
 	return
