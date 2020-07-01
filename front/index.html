@@ -115,7 +115,7 @@
         //     uuid: r1,
         // }
 
-        socket = io.connect('http://192.168.0.209:8080');
+        socket = io.connect('http://localhost:8080');
         document.addEventListener("keydown", onKeyDown);
         function onKeyDown(event) {
             if (event.keyCode === 38 || event.keyCode === 40) {
