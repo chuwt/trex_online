@@ -18,6 +18,7 @@ func GetInRoom(s socketio.Socket, userId string) {
 	room := match.MEngine.GetUserRoom(userId)
 	if room == nil {
 		// 不存在
+		s.Emit("getInRoom", -1)
 		return
 	} else {
 		user := room.GetUser(userId)

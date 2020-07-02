@@ -106,17 +106,27 @@
         uuid = Math.floor(Math.random() * 10000000).toString()
         setCookie("uuid", uuid)
     }
+    // socket = io.connect('http://103.93.79.203:8080');
+    socket = io.connect('http://192.168.0.209:8080/socketio');
+    let connected = false
 
     window.onload = function () {
         let runnerMap = new Map()
         runnerMap.set(uuid, newRunner("runner1"))
 
-        socket = io.connect('http://103.93.79.203:8080');
-        // socket = io.connect('http://192.168.0.209:8080');
-        socket.on("connect", function(data){
-            socket.emit("getInRoom", uuid)
-            socket.emit("getInRoom", uuid)
-        })
+        socket.on('connect', function (){
+            let task = setInterval(function() {
+                socket.emit("getInRoom", uuid)
+            }, 1000);
+            // 获取房间
+            socket.on("getInRoom", function (data) {
+                if (data !== -1) {
+                    document.getElementById("room_name").innerHTML = data
+                }
+                clearInterval(task)
+            })
+        });
+
         document.addEventListener("keydown", onKeyDown);
         function onKeyDown(event) {
             if (event.keyCode === 38 || event.keyCode === 40) {
@@ -142,11 +152,6 @@
                 runnerMap.get(uuid).onKeyDown(event)
             }
         }
-
-        // 获取房间
-        socket.on("getInRoom", function (data) {
-            document.getElementById("room_name").innerHTML = data
-        })
 
         // 开始游戏
         socket.on("startBattle", function(data){

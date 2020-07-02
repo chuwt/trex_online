@@ -1,6 +1,9 @@
 package match
 
-import socketIo "github.com/googollee/go-socket.io"
+import (
+	"fmt"
+	socketIo "github.com/googollee/go-socket.io"
+)
 
 type User struct {
 	Id string
@@ -9,7 +12,11 @@ type User struct {
 
 func (u *User) GetInRoom(roomId int32, roomName string) {
 	u.s.Join(roomName)
-	u.s.Emit("getInRoom", roomId)
+	u.Emit("getInRoom", fmt.Sprintf("%d", roomId))
+}
+
+func (u *User) Emit(event, msg string) {
+	u.s.Emit(event, msg)
 }
 
 func (u *User) LeaveRoom(roomName string) {
